@@ -36,6 +36,6 @@ Image processing:
 - Percentile normalization
 - Conversion to 8-bit
 - Downsampling to 512x512 (except full image)
-- Expeort as 3 channel .png file
+- Export as 3 channel .png file
 
 
