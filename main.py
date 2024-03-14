@@ -11,10 +11,15 @@ import fcn
 
 # MOSAIC IMAGE DATA #
 # Number of tiles
-# Larger earlier images: x=16, y=21
-# Smaller later images: x=15, y=20 
-NUM_TILES_X = 15    # <- CHANGE HERE!!!
-NUM_TILES_Y = 20    # <- CHANGE HERE!!!
+NUM_TILES = {'x': 10, 'y': 13}      # <- CHANGE HERE!!!
+# Image channel to import
+# Current version can only handle mosaic images with exactly 3 channels
+# Ch 0 = Lysosomes (Lysotracker green -> 488 nm) in red
+# Ch 1 = Cell membrane (WGA -> 647 nm) in green
+# Ch 2 = Brightfield (DIC) in blue
+NUM_CHANNELS = 3                    # <- CHANGE HERE!!!
+# Determines which sizes of images are exported
+EXPORT_TYPE = {'full': True, '1x': True, '4x': True, '16x': True}      # <- CHANGE HERE!!!
 
 # IMPORT SETTINGS #
 # Scale factor when mosaic image is imported
@@ -22,20 +27,15 @@ NUM_TILES_Y = 20    # <- CHANGE HERE!!!
 IMPORT_SCALE_SLICE = 1 
 # Scale factor for the full overview image = 1/4 size
 IMPORT_SCALE_FULL = 0.25 
-# Image channel to import
-# Currently only for a mosaic image with one channel
-IMPORT_CHANNEL = 0
 
 # EXPORT SETTINGS #
-# Percentile settings
-PERC_MIN = 0.5 # 0 for no change
-PERC_MAX = 99.5 # 100 for no change
-# Size of the image slices in pixel
-SLICE_SIZE_X = 850
-SLICE_SIZE_Y = 850
-# Size of the final images for training (.png, grayscale, 8-bit)
-RESIZE_X = 512
-RESIZE_Y = 512
+# Percentile settings for each channel as a dict in a dict
+# min: 0 for no change, max: 100 for no change
+PERC_NORM = {0: {'min': 0.1, 'max': 99.9}, 1: {'min': 0.1, 'max': 99.9}, 2: {'min': 0.5, 'max': 99.5}} 
+# Size of the different image slices in pixel
+SLICE_SIZE = {'1x': {'x': 2048, 'y': 2048}, '4x': {'x': 1024, 'y': 1024}, '16x': {'x': 512, 'y': 512},}
+# Size of the final images for training (.png, rgb, 8-bit)
+SLICE_RESIZE = {'x': 512, 'y': 512}
 
 # PATHS AND SAVE #
 # Path to mosaic image file
@@ -43,9 +43,8 @@ CZI_PATH = "czi/"
 CZI_EXTENSION = ".czi"
 # Path to exported images
 EXPORT_PATH = "export/"
-EXPORT_1X_PATH = "1x/"
-EXPORT_4X_PATH = "4x/"
-EXPORT_FULL_PATH = "full/"
+EXPORT_TYPE_PATH = {'full': 'full/', '1x': '1x/', '4x': '4x/', '16x': '16x/'}
+
 # Debug mode
 # Bool if images are saved and folders are created
 SAVE_IMG = True
@@ -58,7 +57,7 @@ SAVE_IMG = True
 # without path and extension
 czi_list = fcn.get_czi_file_list(CZI_PATH, CZI_EXTENSION)
 # print(czi_list)
-   
+  
 # Iterate over file list
 for file_name in czi_list: 
 
@@ -73,98 +72,50 @@ for file_name in czi_list:
     img_data = aicspylibczi.CziFile(pathlib.Path(img_pth))
     # fcn.get_czi_info(img_data)
     print(f"Loading of mosaic .czi image {file_name} successful.")
-
+    
     ######################
     # SETUP IMAGE FOLDER #
     ######################
     
-    if(SAVE_IMG):        
+    if(SAVE_IMG):      
         # Create directory for each czi image 
         fcn.create_export_folder(EXPORT_PATH, file_name)
-        print(f"Folder {EXPORT_PATH + file_name + '/'} for exported images created.")
 
     #####################
     # EXPORT FULL IMAGE #
     #####################
 
     # Create an overview image in 25% size of the original
-    print(f"Export of full image {file_name} at {IMPORT_SCALE_FULL*100}% size is starting. Please wait...")
     fcn.export_full_img(img_data, 
+                        EXPORT_TYPE, 
                         file_name, 
-                        IMPORT_CHANNEL, 
+                        NUM_CHANNELS, 
                         IMPORT_SCALE_FULL, 
-                        PERC_MIN, 
-                        PERC_MAX, 
+                        PERC_NORM, 
                         EXPORT_PATH, 
-                        EXPORT_FULL_PATH, 
+                        EXPORT_TYPE_PATH, 
                         SAVE_IMG)             
-    # Message after export is finished
-    print(f"Export of full image finished.", end="")
-    if(SAVE_IMG):        
-        print(f" PNG image was saved to {EXPORT_PATH + file_name + '/' + EXPORT_FULL_PATH}.")
-    else:
-        print(" No image was saved!")
-        
-    ####################
-    # EXPORT 1x SLICES #
-    ####################
-  
-    print(f"Export of 1x slices for image {file_name} is starting. Please wait...")  
-    fcn.export_sliced_img('1x',
-                          img_data, 
-                          file_name, 
-                          IMPORT_CHANNEL,                     
-                          SLICE_SIZE_X,
-                          SLICE_SIZE_Y,
-                          NUM_TILES_X,
-                          NUM_TILES_Y,
-                          RESIZE_X,
-                          RESIZE_Y, 
-                          IMPORT_SCALE_SLICE, 
-                          PERC_MIN, 
-                          PERC_MAX, 
-                          EXPORT_PATH, 
-                          EXPORT_1X_PATH, 
-                          EXPORT_4X_PATH, 
-                          save_img=True)   
-    # Message for 4x slices
-    print(f"Export of 1x slices finished.", end="")
-    if(SAVE_IMG):        
-        print(f" PNG images were saved to {EXPORT_PATH + file_name + '/' + EXPORT_1X_PATH}.")
-    else:
-        print(" No images were saved!")   
 
-    ####################
-    # EXPORT 4x SLICES #
-    ####################
-  
-    print(f"Export of 4x slices for image {file_name} is starting. Please wait...")  
-    fcn.export_sliced_img('4x',
-                          img_data, 
-                          file_name, 
-                          IMPORT_CHANNEL,                     
-                          SLICE_SIZE_X,
-                          SLICE_SIZE_Y,
-                          NUM_TILES_X,
-                          NUM_TILES_Y,
-                          RESIZE_X,
-                          RESIZE_Y, 
-                          IMPORT_SCALE_SLICE, 
-                          PERC_MIN, 
-                          PERC_MAX, 
-                          EXPORT_PATH,
-                          EXPORT_1X_PATH, 
-                          EXPORT_4X_PATH, 
-                          save_img=True)   
-    # Message for 4x slices
-    print(f"Export of 4x slices finished.", end="")
-    if(SAVE_IMG):        
-        print(f" PNG images were saved to {EXPORT_PATH + file_name + '/' + EXPORT_4X_PATH}.")
-    else:
-        print(" No images were saved!")   
-       
+    #################
+    # EXPORT SLICES #
+    #################
+ 
+    fcn.slice_tiles(img_data,
+                    EXPORT_TYPE, 
+                    file_name, 
+                    NUM_CHANNELS, 
+                    NUM_TILES, 
+                    SLICE_SIZE, 
+                    PERC_NORM, 
+                    SLICE_RESIZE, 
+                    IMPORT_SCALE_SLICE, 
+                    EXPORT_PATH, 
+                    EXPORT_TYPE_PATH, 
+                    SAVE_IMG)
+
     # Free memory
     del img_data
       
-    print(f">> PROCESSING  OF IMAGE {file_name} FINISHED!")
+    print(f">> PROCESSING OF IMAGE {file_name} FINISHED!")
+     
     

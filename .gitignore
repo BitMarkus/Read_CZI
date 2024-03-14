@@ -1,3 +1,4 @@
 czi/
 export/
 __pycache__/
+.vscode/
