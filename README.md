@@ -28,7 +28,9 @@ brightfield image using DIC contrast. Mosaic images must be taken without an ove
 
 Libraries:
 Based on library: aicspylibczi (https://github.com/AllenCellModeling/aicspylibczi)
-Documentation: https://allencellmodeling.github.io/aicspylibczi/aicspylibczi.html
+Documentation: 
+https://allencellmodeling.github.io/aicspylibczi/aicspylibczi.html
+https://allencellmodeling.github.io/aicspylibczi/
 
 Image processing:
 - Percentile normalization

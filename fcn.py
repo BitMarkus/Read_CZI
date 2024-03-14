@@ -1,4 +1,3 @@
-# https://forum.image.sc/t/reading-czi-file-in-python/39768/11
 """
 Information CZI Dimension Characters:
 - '0': 'Sample',  # e.g. RGBA
@@ -15,9 +14,6 @@ Information CZI Dimension Characters:
 - 'H': 'Phase',  # e.g. Airy detector fibers
 - 'V': 'View',  # e.g. for SPIM
 """
-
-# import aicspylibczi
-import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 import glob
@@ -58,15 +54,16 @@ def get_nparr_info(np_arr):
 
 # Reads a czi mosaic file
 # Mosaic files ignore the S dimension and use an internal mIndex to reconstruct, 
-# the scale factor allows one to generate a manageable image
+# the scale factor allows one to generate a manageable image size
 # the C channel has been specified S & M are used internally for position so this is (T, Z, Y, X)
+# As far as I understand the documentation, only one channel can be exported at the same time
 def read_czi_mosaic(czi_data, channel=0, scale=1):
     return czi_data.read_mosaic(C=channel, scale_factor=scale)
 
 # Normalize np image to 0-1
 # Additionally percentile normalization is applied
-def norm_by(x, min_, max_):
-    norms = np.percentile(x, [min_, max_])
+def norm_by(x, min_perc, max_perc):
+    norms = np.percentile(x, [min_perc, max_perc])
     img = np.clip((x - norms[0]) / (norms[1] - norms[0]), 0, 1)
     return img
 
@@ -78,28 +75,24 @@ def convert_to_8bit(np_arr):
 # Convert numpy array to pillow image
 # If the mode parameter is not specified, the mode is inferred 
 # from the shape of the input array. If the input array is two-dimensional, 
-# the mode is ‘L’ (grayscale), and if it is three-dimensional, the mode is ‘RGB’
+# the mode is 'L' (grayscale), and if it is three-dimensional, the mode is ‘RGB’
+# As the program only handels one channel at a time, the mode is 'L'
 def convert_np_to_pil(np_arr, mode="L"):
-    # If the numpy array wasn't sliced, it has one more dimension (first, channel?)
+    # If the numpy array wasn't sliced, it has one more dimension (first axis, channel number)
     # which needs to be deleted in order for the numpy array to be converted to a pillow image
     if(np_arr.ndim == 3):
         np_arr = np_arr[0, :, :]
     return Image.fromarray(np_arr, mode=mode)
 
 # Rezize numpy image
-# Convert to Pillow type, resize and convert back to numpy array
+# Convert to Pillow image, resize and convert back to numpy array
+# Leads to better results compared to resizing the numpy array directly
 def resize_np_img(np_arr, new_size):
     pil_img = convert_np_to_pil(np_arr)
     pil_resize = pil_img.resize((new_size['x'], new_size['y']))
     return np.array(pil_resize)
 
-# Save image
-def save_np_img(np_arr, export_path, img_name):
-    pil_img = convert_np_to_pil(np_arr)
-    pil_img.save(export_path + img_name)
-    return True
-
-# Processes the slices from the mosaic file
+# Process slices from the mosaic file
 # Input must be a numpy array
 # 1. Norms np Image to 0-1 and add percentile:
 # https://medium.com/@susanne.schmid/image-normalization-in-medical-imaging-f586c8526bd1
@@ -116,8 +109,8 @@ def process_np_img_slice(np_arr, perc_norm):
     # fcn.get_nparr_info(np_arr)
     return np_arr
 
-# Converts the mosaic tile index used here (x, y pos) 
-# to the one which is used internally for czi files (1-end)
+# Converts the 2D mosaic tile index used here (x, y pos) 
+# to the one which is used internally for czi files (1D)
 # and the other way around
 # https://stackoverflow.com/questions/41433202/converting-the-index-of-1d-array-into-2d-array
 def convert_index_1d_to_2d(index_1d, num_cols):
@@ -132,22 +125,6 @@ def read_tile_size(czi_data):
      # Image shape, e.g. [{'X': (0, 2752), 'Y': (0, 2208), 'C': (0, 1), 'M': (0, 336), 'S': (0, 1)}]
     shape = czi_data.get_dims_shape()
     return {'x': int(shape[0]['X'][1]), 'y': int(shape[0]['Y'][1])}
-
-# Function reads the number of tiles in a czi mosaic
-def read_tile_number(czi_data):
-     # Image shape, e.g. [{'X': (0, 2752), 'Y': (0, 2208), 'C': (0, 1), 'M': (0, 336), 'S': (0, 1)}]
-    shape = czi_data.get_dims_shape()
-    # Check if czi_data is a mosaic file
-    if(czi_data.is_mosaic()):
-        return shape[0]['M'][1]
-    else:
-        return 0
-    
-# Function reads the number of channels of a tile in a czi mosaic
-def read_channel_num(czi_data):
-     # Image shape, e.g. [{'X': (0, 2752), 'Y': (0, 2208), 'C': (0, 1), 'M': (0, 336), 'S': (0, 1)}]
-    shape = czi_data.get_dims_shape()
-    return int(shape[0]['C'][1])
 
 # Returns a list of all czi files in the czi folder
 # without path and extension
@@ -173,29 +150,26 @@ def get_czi_file_list(czi_pth, czi_ext):
     czi_list.sort()
     return czi_list
 
-# Function creates folder structure for each image in the czi folder
-# Main folder: czi image name
-# Subfolder: 4x/, 1x/, and full
+# Function creates folder for each czi image in the czi folder (named after the czi image file)
 def create_export_folder(exp_path, file_name):
     os.makedirs(exp_path + file_name)
     print(f"Folder {exp_path + file_name + '/'} for exported images created.")
     return True
 
 # Get origin (upper left corner) of a specific tile
-# Tile index is not a 2D matrix, tiles are numbered from 1-end
-# Get info about ALL tiles: img_data.get_all_mosaic_tile_bounding_boxes()
+# Tile index is not a 2D matrix, instead tiles in the original mosaic files are numbered from 1-end (1D)
 # Returns a (x, y) tuple
 def get_tile_origin(czi_data, tile_index):
-    # Get offset for the left corner (x, y) of the first tile (M=0)
+    # Get offset for the left upper corner (x, y) of the first tile (M=0)
     # I do not know why the origin of the first tile it is not (0, 0), but this corrects for it
-    # This is done only for channel 0 as images of all channels are located in the exact same position
+    # This is only done for channel 0 as images of other channels are suppose to be sliced at the exact same position
     channel = 0
     tile0_data = czi_data.get_mosaic_tile_bounding_box(M=0, C=channel)
     # Read actual tile data
     tile_data = czi_data.get_mosaic_tile_bounding_box(M=tile_index, C=channel)  
     return((tile_data.x - tile0_data.x), (tile_data.y - tile0_data.y))
 
-# Function calculates the origin for each 4x4 slice in each tile
+# Function calculates the slice origin for the 1x slice in each tile
 def get_slice_origin(czi_data,
                      tile_pos_x,
                      tile_pos_y,
@@ -220,7 +194,6 @@ def get_slice_origin(czi_data,
     return {'x': slice_origin_x, 'y': slice_origin_y}
 
 # Slice np image
-# def slice_np_img(channel, np_arr, start_x, start_y, size_x, size_y):
 def slice_np_img(np_arr, origin, size):
     slice_end = {'x': (origin['x'] + size['x']), 'y': (origin['y'] + size['y'])}
     return np_arr[origin['y']:slice_end['y'], origin['x']:slice_end['x']]
@@ -382,6 +355,9 @@ def slice_tiles(czi_data,
 
     return True
 
+"""
+# Further helpful functions which are not needed in this project:
+
 # Split an Image in XxY pices
 # From https://stackoverflow.com/questions/5953373/how-to-split-image-into-multiple-pieces-in-python
 # Not used here as crpos must be taken from the original full image and then resized
@@ -400,3 +376,25 @@ def imgcrop(input, xPieces, yPieces):
             except:
                 pass
 
+# Save image
+def save_np_img(np_arr, export_path, img_name):
+    pil_img = convert_np_to_pil(np_arr)
+    pil_img.save(export_path + img_name)
+    return True
+
+# Function reads the number of tiles in a czi mosaic
+def read_tile_number(czi_data):
+     # Image shape, e.g. [{'X': (0, 2752), 'Y': (0, 2208), 'C': (0, 1), 'M': (0, 336), 'S': (0, 1)}]
+    shape = czi_data.get_dims_shape()
+    # Check if czi_data is a mosaic file
+    if(czi_data.is_mosaic()):
+        return shape[0]['M'][1]
+    else:
+        return 0
+
+# Function reads the number of channels of a tile in a czi mosaic
+def read_channel_num(czi_data):
+     # Image shape, e.g. [{'X': (0, 2752), 'Y': (0, 2208), 'C': (0, 1), 'M': (0, 336), 'S': (0, 1)}]
+    shape = czi_data.get_dims_shape()
+    return int(shape[0]['C'][1])
+"""

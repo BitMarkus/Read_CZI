@@ -12,14 +12,12 @@ import fcn
 # MOSAIC IMAGE DATA #
 # Number of tiles
 NUM_TILES = {'x': 10, 'y': 13}      # <- CHANGE HERE!!!
-# Image channel to import
-# Current version can only handle mosaic images with exactly 3 channels
+# Image channels to import
+# Current version can only handle mosaic images with exactly 3 channels:
 # Ch 0 = Lysosomes (Lysotracker green -> 488 nm) in red
 # Ch 1 = Cell membrane (WGA -> 647 nm) in green
 # Ch 2 = Brightfield (DIC) in blue
-NUM_CHANNELS = 3                    # <- CHANGE HERE!!!
-# Determines which sizes of images are exported
-EXPORT_TYPE = {'full': True, '1x': True, '4x': True, '16x': True}      # <- CHANGE HERE!!!
+NUM_CHANNELS = 3
 
 # IMPORT SETTINGS #
 # Scale factor when mosaic image is imported
@@ -29,16 +27,19 @@ IMPORT_SCALE_SLICE = 1
 IMPORT_SCALE_FULL = 0.25 
 
 # EXPORT SETTINGS #
+# Determines which sizes of images are exported
+EXPORT_TYPE = {'full': True, '1x': True, '4x': True, '16x': True}      # <- CHANGE HERE!!!
 # Percentile settings for each channel as a dict in a dict
 # min: 0 for no change, max: 100 for no change
-PERC_NORM = {0: {'min': 0.1, 'max': 99.9}, 1: {'min': 0.1, 'max': 99.9}, 2: {'min': 0.5, 'max': 99.5}} 
-# Size of the different image slices in pixel
+PERC_NORM = {0: {'min': 0.1, 'max': 99.9}, 1: {'min': 0.1, 'max': 99.9}, 2: {'min': 0.5, 'max': 99.5}}      # <- CHANGE HERE!!! 
+# Slice sizes taken from the original czi image in pixel
+# All slices (except full image) will be resized to 512x512px
 SLICE_SIZE = {'1x': {'x': 2048, 'y': 2048}, '4x': {'x': 1024, 'y': 1024}, '16x': {'x': 512, 'y': 512},}
 # Size of the final images for training (.png, rgb, 8-bit)
 SLICE_RESIZE = {'x': 512, 'y': 512}
 
 # PATHS AND SAVE #
-# Path to mosaic image file
+# Path to .czi mosaic image file
 CZI_PATH = "czi/"
 CZI_EXTENSION = ".czi"
 # Path to exported images
